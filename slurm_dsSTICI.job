@@ -1,0 +1,176 @@
+#!/bin/bash
+#SBATCH --export=ALL
+#SBATCH --partition=gpu
+#SBATCH --gpus=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --time=120:00:00
+#SBATCH --job-name=dsSTICI
+#SBATCH --output=dsSTICI-%j.out
+
+
+# -----------------------------------------------------------------------------
+# One-dataset dsSTICI training + imputation job.
+#
+# Required at submission time:
+#   DATASET_NAME   short label used in output paths
+#   REF_FASTA      sparse training cell-variant FASTA(.gz)
+#
+# Optional:
+#   TARGET_FASTA   FASTA to impute; defaults to REF_FASTA
+#   SAVE_DIR       defaults to ./results/dsSTICI_${DATASET_NAME}
+#   CONDA_ENV      defaults to dsstici-tf214
+#   CUDA_MODULE    defaults to cuda (cluster-specific; set empty to skip)
+#   RUN_FASTTREE   0/1; defaults to 0
+#   FASTTREE_BIN   required only when RUN_FASTTREE=1
+#
+# Every training hyperparameter is made explicit below so the command recorded
+# in run_metadata.json is sufficient to identify the model configuration.
+# -----------------------------------------------------------------------------
+
+: "${DATASET_NAME:?Set DATASET_NAME, e.g. DATASET_NAME=TNBC5}"
+: "${REF_FASTA:?Set REF_FASTA to the sparse training FASTA or FASTA.GZ}"
+
+TARGET_FASTA="${TARGET_FASTA:-${REF_FASTA}}"
+SAVE_DIR="${SAVE_DIR:-${SLURM_SUBMIT_DIR:-$PWD}/results/dsSTICI_${DATASET_NAME}}"
+SCRIPT="${SCRIPT:-${SLURM_SUBMIT_DIR:-$PWD}/dsSTICI.py}"
+CONDA_ENV="${CONDA_ENV:-dsstici-tf214}"
+CONDA_SH="${CONDA_SH:-}"
+CUDA_MODULE="${CUDA_MODULE:-cuda}"
+
+# Parameters. Override any of these with sbatch --export=ALL,NAME=value,...
+BATCH_SIZE="${BATCH_SIZE:-4}"
+EMBED_DIM="${EMBED_DIM:-128}"
+SELF_ATTN_HEADS="${SELF_ATTN_HEADS:-16}"
+CROSS_ATTN_HEADS="${CROSS_ATTN_HEADS:-8}"
+LEARNING_RATE="${LEARNING_RATE:-5e-4}"
+MASK_RATE="${MASK_RATE:-0.8}"
+EPOCHS="${EPOCHS:-1000}"
+CHUNK_SIZE="${CHUNK_SIZE:-2048}"
+CHUNK_OVERLAP="${CHUNK_OVERLAP:-256}"
+SITES_PER_MODEL="${SITES_PER_MODEL:-16000}"
+DROPOUT_RATE="${DROPOUT_RATE:-0.25}"
+RANDOM_SEED="${RANDOM_SEED:-2024}"
+DETERMINISTIC_OPS="${DETERMINISTIC_OPS:-1}"
+CONFIDENCE_THRESHOLD="${CONFIDENCE_THRESHOLD:-0.7}"
+VERBOSE="${VERBOSE:-2}"
+RESTART_TRAINING="${RESTART_TRAINING:-1}"
+RUN_FASTTREE="${RUN_FASTTREE:-0}"
+
+cd "${SLURM_SUBMIT_DIR:-$PWD}"
+
+if command -v module >/dev/null 2>&1 && [[ -n "${CUDA_MODULE}" ]]; then
+    module load "${CUDA_MODULE}"
+fi
+
+# Activate conda without assuming a user-specific Miniconda path. If conda is
+# not initially on PATH, submit with CONDA_SH=/path/to/etc/profile.d/conda.sh.
+if [[ -n "${CONDA_SH}" ]]; then
+    # shellcheck source=/dev/null
+    source "${CONDA_SH}"
+elif command -v conda >/dev/null 2>&1; then
+    CONDA_BASE="$(conda info --base)"
+    # shellcheck source=/dev/null
+    source "${CONDA_BASE}/etc/profile.d/conda.sh"
+else
+    echo "ERROR: conda is not on PATH. Set CONDA_SH to conda.sh." >&2
+    exit 2
+fi
+conda activate "${CONDA_ENV}"
+
+if [[ ! -f "${SCRIPT}" ]]; then
+    echo "ERROR: dsSTICI script not found: ${SCRIPT}" >&2
+    exit 2
+fi
+if [[ ! -f "${REF_FASTA}" ]]; then
+    echo "ERROR: REF_FASTA not found: ${REF_FASTA}" >&2
+    exit 2
+fi
+if [[ ! -f "${TARGET_FASTA}" ]]; then
+    echo "ERROR: TARGET_FASTA not found: ${TARGET_FASTA}" >&2
+    exit 2
+fi
+
+mkdir -p "${SAVE_DIR}"
+
+echo "============================================================"
+echo "dsSTICI job"
+echo "Job ID:              ${SLURM_JOB_ID:-not-slurm}"
+echo "Dataset:             ${DATASET_NAME}"
+echo "Node:                $(hostname)"
+echo "Start:               $(date +'%Y-%m-%d %H:%M:%S')"
+echo "Script:              ${SCRIPT}"
+echo "Training FASTA:      ${REF_FASTA}"
+echo "Target FASTA:        ${TARGET_FASTA}"
+echo "Save directory:      ${SAVE_DIR}"
+echo "Random seed:         ${RANDOM_SEED}"
+echo "Deterministic ops:   ${DETERMINISTIC_OPS}"
+echo "============================================================"
+
+python - <<'PY'
+import tensorflow as tf
+import tensorflow_addons as tfa
+print("TensorFlow:", tf.__version__)
+print("TensorFlow Addons:", tfa.__version__)
+print("Visible GPUs:", tf.config.list_physical_devices("GPU"))
+PY
+
+TRAIN_CMD=(
+    python "${SCRIPT}"
+    --mode train
+    --save-dir "${SAVE_DIR}"
+    --ref "${REF_FASTA}"
+    --restart-training "${RESTART_TRAINING}"
+    --batch-size-per-gpu "${BATCH_SIZE}"
+    --embed-dim "${EMBED_DIM}"
+    --na-heads "${SELF_ATTN_HEADS}"
+    --cross-attention-heads "${CROSS_ATTN_HEADS}"
+    --lr "${LEARNING_RATE}"
+    --mr "${MASK_RATE}"
+    --epochs "${EPOCHS}"
+    --cs "${CHUNK_SIZE}"
+    --co "${CHUNK_OVERLAP}"
+    --sites-per-model "${SITES_PER_MODEL}"
+    --dropout-rate "${DROPOUT_RATE}"
+    --random-seed "${RANDOM_SEED}"
+    --deterministic-ops "${DETERMINISTIC_OPS}"
+    --verbose "${VERBOSE}"
+)
+
+echo "Training command:"
+printf ' %q' "${TRAIN_CMD[@]}"; echo
+srun "${TRAIN_CMD[@]}"
+
+IMPUTE_CMD=(
+    python "${SCRIPT}"
+    --mode impute
+    --save-dir "${SAVE_DIR}"
+    --ref "${REF_FASTA}"
+    --target "${TARGET_FASTA}"
+    --batch-size-per-gpu "${BATCH_SIZE}"
+    --confidence-threshold "${CONFIDENCE_THRESHOLD}"
+    --verbose "${VERBOSE}"
+)
+
+echo "Imputation command:"
+printf ' %q' "${IMPUTE_CMD[@]}"; echo
+srun "${IMPUTE_CMD[@]}"
+
+if [[ "${RUN_FASTTREE}" == "1" ]]; then
+    : "${FASTTREE_BIN:?Set FASTTREE_BIN when RUN_FASTTREE=1}"
+    if [[ ! -x "${FASTTREE_BIN}" ]]; then
+        echo "ERROR: FASTTREE_BIN is not executable: ${FASTTREE_BIN}" >&2
+        exit 2
+    fi
+    PRED_FASTA="${SAVE_DIR}/out/predictions_confidence_$(printf '%.1f' "${CONFIDENCE_THRESHOLD}").fasta"
+    TREE_OUT="${SAVE_DIR}/out/predictions_confidence_$(printf '%.1f' "${CONFIDENCE_THRESHOLD}")_fast.nwk"
+    export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-${SLURM_CPUS_ON_NODE:-4}}"
+    "${FASTTREE_BIN}" -nosupport -nt "${PRED_FASTA}" > "${TREE_OUT}"
+    echo "FastTree output: ${TREE_OUT}"
+fi
+
+echo "============================================================"
+echo "dsSTICI job complete"
+echo "End: $(date +'%Y-%m-%d %H:%M:%S')"
+echo "Outputs: ${SAVE_DIR}/out"
+echo "============================================================"
