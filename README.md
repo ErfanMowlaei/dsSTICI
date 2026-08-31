@@ -31,11 +31,9 @@ However, dsSTICI is **not an exact copy of the public STICI architecture**. The 
 
 | Component | Public STICI | dsSTICI |
 |---|---|---|
-| Self-attention normalization | MHA -> residual + LayerNorm -> FFN -> residual + second LayerNorm | **LayerNorm before MHA** -> residual + LayerNorm -> FFN -> residual; **no final post-FFN LayerNorm** |
-| Self-attention output | hidden representation | hidden representation + exported attention scores |
-| Cross-attention output | hidden representation | hidden representation + exported attention scores |
 | Input representation | genotype/imputation representation used by STICI | 5-state nucleotide input: `A`, `T`, `G`, `C`, `?` |
 | Prediction head | genotype probabilities | 4-state base probabilities: `A`, `T`, `G`, `C` |
+| Loss functions | Categorical cross-entropy + KLD + Mach-Rsq | Categorical cross-entropy + KLD |
 
 The convolutional and cross-attention scaffold is otherwise closely retained from STICI. Parameter defaults such as chunk overlap and sites per saved model are also different in dsSTICI, but those are **hyperparameter changes rather than topology changes**.
 
