@@ -125,8 +125,7 @@ python dsSTICI.py \
   --co 256 \
   --sites-per-model 16000 \
   --dropout-rate 0.25 \
-  --random-seed 2024 \
-  --deterministic-ops true \
+  --random-seed 2026 \
   --verbose 2
 ```
 
