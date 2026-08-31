@@ -127,13 +127,6 @@ def software_versions() -> Dict[str, str]:
     }
 
 
-def _strip_legacy_keys(config: Dict[str, Any], keys: Iterable[str]) -> Dict[str, Any]:
-    clean = dict(config)
-    for key in keys:
-        clean.pop(key, None)
-    return clean
-
-
 # -----------------------------------------------------------------------------
 # Custom layers
 # -----------------------------------------------------------------------------
@@ -196,18 +189,6 @@ class CrossAttentionLayer(layers.Layer):
 
     @classmethod
     def from_config(cls, config: Dict[str, Any]) -> "CrossAttentionLayer":
-        config = _strip_legacy_keys(
-            config,
-            {
-                "layer_norm00",
-                "layer_norm01",
-                "layer_norm1",
-                "ffn",
-                "add0",
-                "add1",
-                "attention",
-            },
-        )
         return cls(**config)
 
     def call(
@@ -298,10 +279,6 @@ class SelfAttentionBlock(layers.Layer):
 
     @classmethod
     def from_config(cls, config: Dict[str, Any]) -> "SelfAttentionBlock":
-        config = _strip_legacy_keys(
-            config,
-            {"ffn", "att0", "layer_norm0", "layer_norm1"},
-        )
         return cls(**config)
 
     def call(
@@ -387,16 +364,6 @@ class CatEmbeddings(layers.Layer):
 
     @classmethod
     def from_config(cls, config: Dict[str, Any]) -> "CatEmbeddings":
-        config = _strip_legacy_keys(
-            config,
-            {
-                "position_embedding",
-                "embedding",
-                "positions",
-                "num_of_allels",
-                "n_snps",
-            },
-        )
         return cls(**config)
 
     def call(self, inputs: tf.Tensor) -> tf.Tensor:
@@ -445,7 +412,6 @@ class SelfAttnChunk(layers.Layer):
 
     @classmethod
     def from_config(cls, config: Dict[str, Any]) -> "SelfAttnChunk":
-        config = _strip_legacy_keys(config, {"attention_block"})
         return cls(**config)
 
     def call(
@@ -495,10 +461,6 @@ class CrossAttnChunk(layers.Layer):
 
     @classmethod
     def from_config(cls, config: Dict[str, Any]) -> "CrossAttnChunk":
-        config = _strip_legacy_keys(
-            config,
-            {"local_dim", "global_dim", "attention_block"},
-        )
         return cls(**config)
 
     def call(
@@ -547,23 +509,6 @@ class ConvBlock(layers.Layer):
 
     @classmethod
     def from_config(cls, config: Dict[str, Any]) -> "ConvBlock":
-        config = _strip_legacy_keys(
-            config,
-            {
-                "const",
-                "conv000",
-                "conv010",
-                "conv011",
-                "conv020",
-                "conv021",
-                "add",
-                "conv100",
-                "bn0",
-                "bn1",
-                "dw_conv",
-                "activation",
-            },
-        )
         return cls(**config)
 
     def call(self, inputs: tf.Tensor, training: bool = False) -> tf.Tensor:
@@ -622,7 +567,7 @@ def chunk_module(
     return keras.Model(
         inputs=inputs,
         outputs=[xa, self_attention_scores, cross_attention_scores],
-        name="dsstici_internal_chunk",
+        name="dsSTICI_internal_chunk",
     )
 
 
@@ -631,7 +576,7 @@ def chunk_module(
 # -----------------------------------------------------------------------------
 
 @keras.utils.register_keras_serializable(package="dsSTICI", name="dsSTICI")
-class DsSTICI(keras.Model):
+class dsSTICI(keras.Model):
     def __init__(
         self,
         embed_dim: int,
@@ -739,28 +684,7 @@ class DsSTICI(keras.Model):
         return config
 
     @classmethod
-    def from_config(cls, config: Dict[str, Any]) -> "DsSTICI":
-        config = _strip_legacy_keys(
-            config,
-            {
-                "in_channel",
-                "seq_len",
-                "masking_val",
-                "accuracy_tracker_seq",
-                "loss_tracker",
-                "cce_fn",
-                "kld_fn",
-                "chunk_starts",
-                "chunk_ends",
-                "mask_starts",
-                "mask_ends",
-                "chunkers",
-                "embedding",
-                "concat_layer",
-                "after_concat_layer",
-                "last_conv",
-            },
-        )
+    def from_config(cls, config: Dict[str, Any]) -> "dsSTICI":
         config.setdefault("cross_attention_heads", 8)
         return cls(**config)
 
@@ -892,9 +816,9 @@ class DsSTICI(keras.Model):
 # Legacy names are intentionally mapped to the cleaned implementations so older
 # checkpoints have a best-effort load path. New checkpoints use dsSTICI names.
 custom_objects = {
-    "dsSTICI": DsSTICI,
-    "DsSTICI": DsSTICI,
-    "SplitTransformer": DsSTICI,
+    "dsSTICI": dsSTICI,
+    "dsSTICI": dsSTICI,
+    "SplitTransformer": dsSTICI,
     "CrossAttentionLayer": CrossAttentionLayer,
     "SelfAttentionBlock": SelfAttentionBlock,
     "MaskedTransformerBlock": SelfAttentionBlock,
@@ -905,7 +829,7 @@ custom_objects = {
     "ConvBlock": ConvBlock,
     "chunk_module": chunk_module,
     # Registered-name aliases emitted by the historical implementation.
-    "MyModels>SplitTransformer": DsSTICI,
+    "MyModels>SplitTransformer": dsSTICI,
     "MyLayers>CrossAttentionLayer": CrossAttentionLayer,
     "MyLayers>MaskedTransformerBlock": SelfAttentionBlock,
     "MyLayers>CatEmbeddings": CatEmbeddings,
@@ -921,8 +845,8 @@ custom_objects = {
 # Model creation and training helpers
 # -----------------------------------------------------------------------------
 
-def create_model(model_args: Dict[str, Any]) -> DsSTICI:
-    model = DsSTICI(
+def create_model(model_args: Dict[str, Any]) -> dsSTICI:
+    model = dsSTICI(
         embed_dim=model_args["embedding_dim"],
         num_heads=model_args["num_heads"],
         chunk_size=model_args["chunk_size"],
@@ -1181,7 +1105,7 @@ def save_chunk_status(save_dir: Union[str, Path], chunk_info: Dict[int, bool]) -
 
 
 def model_path(save_dir: Union[str, Path], chunk_index: int) -> Path:
-    return Path(save_dir) / "models" / f"dsstici_chunk_{chunk_index + 1:03d}.keras"
+    return Path(save_dir) / "models" / f"dsSTICI_chunk_{chunk_index + 1:03d}.keras"
 
 
 def legacy_model_path(save_dir: Union[str, Path], chunk_index: int) -> Path:
