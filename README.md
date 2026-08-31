@@ -8,7 +8,7 @@ Code accompanying the manuscript:
 
 ## Overview
 
-Single-cell RNA sequencing (scRNA-seq) can provide both expression measurements and genetic variant calls for individual cells, but the resulting cell-variant (CV) matrices are extremely sparse and contain false-positive and false-negative base calls. **dsSTICI** adapts the STICI Split-Transformer with Integrated Convolutions framework to this setting by training a separate model **de novo for each sparse CV matrix**. The trained dataset-specific model reconstructs A/T/G/C probabilities at every site and can be used to produce a substantially denser matrix for downstream phylogenetic/genetic-type analyses.
+Single-cell RNA sequencing (scRNA-seq) can provide both expression measurements and genetic variant calls for individual cells, but the resulting cell-variant (CV) matrices are extremely sparse and contain false-positive and false-negative base calls. **dsSTICI** adapts the STICI Split-Transformer with Integrated Convolutions framework to this setting by training a separate model **de novo for each sparse CV matrix (sequence alignment)**. The trained dataset-specific model reconstructs A/T/G/C probabilities at every site and can be used to produce a substantially denser matrix for downstream phylogenetic/genetic-type analyses.
 
 Upstream STICI resources:
 
