@@ -1,0 +1,15 @@
+name: dsstici-tf214
+channels:
+  - conda-forge
+dependencies:
+  - python=3.9.21
+  - pip=25.0
+  - pip:
+      # TensorFlow/Keras versions recovered from the supplied tf-214 environment.
+      - tensorflow==2.14.1
+      - keras==2.14.0
+      # 0.22.0 is the TensorFlow Addons release built/tested for TF 2.14.
+      # The supplied environment contained 0.23.0, which targets TF 2.15.
+      - tensorflow-addons==0.22.0
+      - numpy==1.26.4
+      - tqdm==4.67.1
