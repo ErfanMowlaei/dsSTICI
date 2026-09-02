@@ -12,12 +12,6 @@ Key implementation notes
 * Training corruption: a fixed fraction of observed bases is replaced by ?.
 * Training loss: categorical cross-entropy + KL divergence on originally
   observed target positions.  No MaCH-Rsq loss is used.
-* Model/layer serialization stores constructor configuration only.  Learned
-  weights, tensors, metrics, losses, and child-layer instances are not placed
-  in get_config().
-
-The code keeps compatibility aliases for legacy dsSTICI/STICI-derived checkpoint
-class names where practical, while new models are saved in Keras .keras format.
 """
 
 from __future__ import annotations
