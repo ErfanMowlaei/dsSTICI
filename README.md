@@ -8,7 +8,7 @@ Code accompanying the manuscript:
 
 ## Overview
 
-Single-cell RNA sequencing (scRNA-seq) can provide both expression measurements and genetic variant calls for individual cells, but the resulting cell-variant (CV) matrices are extremely sparse and contain false-positive and false-negative base calls. **dsSTICI** adapts the STICI Split-Transformer with Integrated Convolutions framework to this setting by training a separate model **de novo for each sparse CV matrix (sequence alignment)**. The trained dataset-specific model reconstructs A/T/G/C probabilities at every site and can be used to produce a substantially denser matrix for downstream phylogenetic/genetic-type analyses.
+Single-cell RNA sequencing (scRNA-seq) can provide both expression measurements and genetic variant calls for individual cells, but the resulting cell-variant (CV) matrices are extremely sparse and contain false-positive and false-negative base calls. **dsSTICI** adapts the STICI Split-Transformer with Integrated Convolutions framework to this setting by training a separate model **de novo for each sparse scRNA-seq alignment**. The trained dataset-specific model reconstructs A/T/G/C probabilities at every site and can be used to produce a substantially denser matrix for downstream phylogenetic/genetic-type analyses.
 
 Upstream STICI resources:
 
@@ -39,7 +39,7 @@ However, dsSTICI is **not an exact copy of the public STICI architecture**. The 
 
 The main methodological changes for the scRNA-seq application are:
 
-1. **One model is trained de novo per CV matrix.** There is no external reference panel shared across datasets in the standard dsSTICI use case.
+1. **One model is trained de novo per scRNA-seq alignment.** There is no external reference panel shared across datasets in the standard dsSTICI use case.
 2. **Observed-base masking is dataset-specific training corruption.** For each training example, a fixed fraction `--mr` of positions that are currently observed is changed to `?` in the input. Positions already missing remain missing.
 3. **Originally missing target positions do not contribute to the loss.** The target is the uncorrupted sequence, but loss is evaluated only where the original target has an observed A/T/G/C call.
 4. **Loss is evaluated on all originally observed target positions, not only positions newly masked for that training pass.** Thus both masked and still-visible observed bases contribute to reconstruction training.
